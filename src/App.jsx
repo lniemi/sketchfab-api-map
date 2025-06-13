@@ -18,10 +18,39 @@ function App() {
   const [mapInitialized, setMapInitialized] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mapProvider, setMapProvider] = useState('maplibre'); // 'maplibre' or 'mapbox'
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [animationType, setAnimationType] = useState(null);
+  const animationRef = useRef(null);
+  const modelRef = useRef(null);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
+
+  const startBroomBroomAnimation = () => {
+    if (!currentLayer || !map.current) {
+      setStatus('Please load a model first');
+      setStatusType('error');
+      return;
+    }
+
+    setIsAnimating(true);
+    setAnimationType('broomBroom');
+    setStatus('Starting Broom Broom animation...');
+    setStatusType('success');
+  };
+
+  const stopAnimation = () => {
+    setIsAnimating(false);
+    setAnimationType(null);
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    setStatus('Animation stopped');
+    setStatusType('success');
+  };
+
   const initializeMap = () => {
     if (mapProvider === 'mapbox' && !mapboxApiToken) {
       setStatus('Please enter your Mapbox API token to use Mapbox');
@@ -31,7 +60,9 @@ function App() {
 
     if (map.current) return; // Initialize map only once
 
-    let mapInstance;    if (mapProvider === 'maplibre') {
+    let mapInstance;
+    
+    if (mapProvider === 'maplibre') {
       // MapLibre GL JS - no API key required
       mapInstance = new maplibregl.Map({
         container: mapContainer.current,
@@ -66,7 +97,9 @@ function App() {
       mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
     }
 
-    map.current = mapInstance;    // Wait for map to load before adding 3D buildings layer
+    map.current = mapInstance;
+    
+    // Wait for map to load before adding 3D buildings layer
     map.current.on('style.load', () => {
       if (mapProvider === 'maplibre') {
         // Add 3D buildings layer for MapLibre using the same approach as the example
@@ -143,7 +176,9 @@ function App() {
       setStatus(`Failed to initialize map with ${mapProvider}. ${mapProvider === 'mapbox' ? 'Please check your Mapbox API token.' : 'Please try again.'}`);
       setStatusType('error');
     });
-  };  // Auto-initialize MapLibre on first load (no API key needed)
+  };
+  
+  // Auto-initialize MapLibre on first load (no API key needed)
   useEffect(() => {
     if (mapProvider === 'maplibre' && !mapInitialized) {
       initializeMap();
@@ -156,6 +191,7 @@ function App() {
       initializeMap();
     }
   }, [mapProvider]);
+  
   const downloadSketchfabModel = async () => {
     if (!mapInitialized) {
       setStatus('Please initialize the map first');
@@ -211,6 +247,7 @@ function App() {
       setStatusType('error');
     }
   };
+  
   const loadModelOnMap = (modelUrl) => {
     // Remove existing layer if any
     if (currentLayer && map.current.getLayer(currentLayer)) {
@@ -242,6 +279,11 @@ function App() {
       rotateZ: modelRotate[2],
       scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
     };
+
+    // Animation variables
+    let animationTime = 0;
+    const animationSpeed = 0.001;
+    const driftRadius = 0.0002; // Radius in degrees for the drift circle
 
     // Custom layer for 3D model
     const customLayer = {
@@ -283,6 +325,7 @@ function App() {
             }
             
             this.scene.add(gltf.scene);
+            modelRef.current = gltf.scene;
             setStatus('Model loaded successfully!');
             setStatusType('success');
           },
@@ -309,6 +352,29 @@ function App() {
         this.renderer.autoClear = false;
       },
       render(gl, matrix) {
+        // Update animation
+        if (isAnimating && animationType === 'broomBroom') {
+          animationTime += animationSpeed;
+          
+          // Calculate circular motion
+          const centerLng = modelOrigin[0];
+          const centerLat = modelOrigin[1];
+          
+          const newLng = centerLng + Math.cos(animationTime * 100) * driftRadius;
+          const newLat = centerLat + Math.sin(animationTime * 100) * driftRadius;
+          
+          // Update model position
+          const MercatorCoord = mapProvider === 'maplibre' ? maplibregl.MercatorCoordinate : mapboxgl.MercatorCoordinate;
+          const newCoordinate = MercatorCoord.fromLngLat([newLng, newLat], modelAltitude);
+          
+          modelTransform.translateX = newCoordinate.x;
+          modelTransform.translateY = newCoordinate.y;
+          modelTransform.translateZ = newCoordinate.z;
+          
+          // Add rotation to face the direction of movement
+          modelTransform.rotateZ = -animationTime * 100 + Math.PI / 2;
+        }
+
         const rotationX = new THREE.Matrix4().makeRotationAxis(
           new THREE.Vector3(1, 0, 0),
           modelTransform.rotateX
@@ -364,8 +430,10 @@ function App() {
 
   const removeModel = () => {
     if (currentLayer && map.current.getLayer(currentLayer)) {
+      stopAnimation(); // Stop any ongoing animation
       map.current.removeLayer(currentLayer);
       setCurrentLayer(null);
+      modelRef.current = null;
       setStatus('Model removed');
       setStatusType('success');
     } else {
@@ -378,7 +446,8 @@ function App() {
     <div className="app-container">
       <div ref={mapContainer} className="map-container" />
       
-      <div className="sidepanel-container">        <div className={`controls ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <div className="sidepanel-container">
+        <div className={`controls ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <h2>3D Model Map Viewer</h2>
           <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
             Load GLB format models from Sketchfab onto a 3D map. MapLibre is used by default (no API key needed), or switch to Mapbox for premium features.
@@ -386,7 +455,7 @@ function App() {
           
           <div className="map-provider-section">
             <h3>Map Provider</h3>
-              <div className="input-group">
+            <div className="input-group">
               <label>Select Map Provider:</label>
               <select 
                 value={mapProvider} 
@@ -411,7 +480,9 @@ function App() {
                 <option value="maplibre">MapLibre GL JS (Free, No API Key)</option>
                 <option value="mapbox">Mapbox GL JS (Requires API Key)</option>
               </select>
-            </div>            {mapProvider === 'mapbox' && (
+            </div>
+            
+            {mapProvider === 'mapbox' && (
               <div className="input-group">
                 <label htmlFor="mapbox-token">Mapbox API Token:</label>
                 <input
@@ -422,7 +493,9 @@ function App() {
                   placeholder="Your Mapbox API Token (pk.ey...)"
                 />
               </div>
-            )}            <div className="button-group">
+            )}
+            
+            <div className="button-group">
               <button 
                 onClick={() => {
                   if (map.current) {
@@ -442,7 +515,9 @@ function App() {
                 }
               </button>
             </div>
-          </div>          {mapInitialized && (
+          </div>
+          
+          {mapInitialized && (
             <div className="model-section">
               <h3>Load 3D Model from Sketchfab</h3>
               
@@ -489,11 +564,33 @@ function App() {
               </div>
 
               {currentLayer && (
-                <div className="button-group" style={{ marginTop: '10px' }}>
-                  <button onClick={removeModel} className="remove">
-                    Remove Model
-                  </button>
-                </div>
+                <>
+                  <div className="button-group" style={{ marginTop: '10px' }}>
+                    <button onClick={removeModel} className="remove">
+                      Remove Model
+                    </button>
+                  </div>
+                  
+                  <div className="animation-section">
+                    <h3>Animations</h3>
+                    <div className="button-group">
+                      <button 
+                        onClick={startBroomBroomAnimation}
+                        disabled={isAnimating}
+                        className={isAnimating && animationType === 'broomBroom' ? 'success' : ''}
+                      >
+                        {isAnimating && animationType === 'broomBroom' ? 'Broom Broom! 🏎️' : 'Broom Broom'}
+                      </button>
+                    </div>
+                    {isAnimating && (
+                      <div className="button-group" style={{ marginTop: '10px' }}>
+                        <button onClick={stopAnimation} className="remove">
+                          Stop Animation
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           )}
