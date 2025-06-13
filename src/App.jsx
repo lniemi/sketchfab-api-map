@@ -1,450 +1,113 @@
-import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import maplibregl from 'maplibre-gl';
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import React, { useState } from 'react';
+import { useMapProvider } from './hooks/useMapProvider';
+import { useSketchfabModel } from './hooks/useSketchfabModel';
+import { useModelLoader } from './hooks/useModelLoader';
+import { useAnimations } from './hooks/useAnimations';
+import MapProviderSection from './components/MapProviderSection';
+import ModelSection from './components/ModelSection';
+import StatusMessage from './components/StatusMessage';
+import ToggleButton from './components/ToggleButton';
 import './App.css';
 
 function App() {
-  const mapContainer = useRef(null);
-  const map = useRef(null);
-  const [sketchfabUID, setSketchfabUID] = useState('');
-  const [sketchfabApiToken, setSketchfabApiToken] = useState('');
-  const [mapboxApiToken, setMapboxApiToken] = useState('');
-  const [modelPassword, setModelPassword] = useState('');
   const [status, setStatus] = useState('');
   const [statusType, setStatusType] = useState('');
-  const [currentLayer, setCurrentLayer] = useState(null);
-  const [mapInitialized, setMapInitialized] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mapProvider, setMapProvider] = useState('maplibre'); // 'maplibre' or 'mapbox'
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [animationType, setAnimationType] = useState(null);
-  const animationRef = useRef(null);
-  const modelRef = useRef(null);
+
+  // Custom hooks
+  const mapProvider = useMapProvider();
+  const sketchfabModel = useSketchfabModel();
+  const modelLoader = useModelLoader();
+  const animations = useAnimations();
+  // Utility functions
+  const updateStatus = (message, type) => {
+    setStatus(message);
+    setStatusType(type);
+  };
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  const startBroomBroomAnimation = () => {
-    if (!currentLayer || !map.current) {
-      setStatus('Please load a model first');
-      setStatusType('error');
-      return;
-    }
-
-    setIsAnimating(true);
-    setAnimationType('broomBroom');
-    setStatus('Starting Broom Broom animation...');
-    setStatusType('success');
+  const handleMapProviderChange = (newProvider) => {
+    mapProvider.setMapProvider(newProvider);
+    mapProvider.resetMap();
+    modelLoader.currentLayer && setStatus('Map provider changed. Please reload your model.', 'warning');
   };
 
-  const stopAnimation = () => {
-    setIsAnimating(false);
-    setAnimationType(null);
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-    setStatus('Animation stopped');
-    setStatusType('success');
-  };
-
-  const initializeMap = () => {
-    if (mapProvider === 'mapbox' && !mapboxApiToken) {
-      setStatus('Please enter your Mapbox API token to use Mapbox');
-      setStatusType('error');
-      return;
-    }
-
-    if (map.current) return; // Initialize map only once
-
-    let mapInstance;
-    
-    if (mapProvider === 'maplibre') {
-      // MapLibre GL JS - no API key required
-      mapInstance = new maplibregl.Map({
-        container: mapContainer.current,
-        style: 'https://tiles.stadiamaps.com/styles/alidade_bright.json', // Stadia Maps style
-        zoom: 16,
-        center: [24.9441, 60.1710], // Senate Square, Helsinki
-        pitch: 60,
-        bearing: -20,
-        antialias: true
-      });
-
-      // Add RTL text plugin for better text rendering
-      maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js');
-
-      // Add navigation controls
-      mapInstance.addControl(new maplibregl.NavigationControl(), 'top-right');
-    } else {
-      // Mapbox GL JS - requires API key
-      mapboxgl.accessToken = mapboxApiToken;
-      
-      mapInstance = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/standard', // Mapbox Standard style with 3D buildings
-        zoom: 16,
-        center: [24.9441, 60.1710], // Senate Square, Helsinki
-        pitch: 60,
-        bearing: -20,
-        antialias: true
-      });
-
-      // Add navigation controls
-      mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    }
-
-    map.current = mapInstance;
-    
-    // Wait for map to load before adding 3D buildings layer
-    map.current.on('style.load', () => {
-      if (mapProvider === 'maplibre') {
-        // Add 3D buildings layer for MapLibre using the same approach as the example
-        const layers = map.current.getStyle().layers;
-
-        // Find the first symbol layer to add buildings underneath
-        let labelLayerId;
-        for (let i = 0; i < layers.length; i++) {
-          if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
-            labelLayerId = layers[i].id;
-            break;
-          }
-        }
-
-        map.current.addLayer({
-          'id': '3d-buildings',
-          'source': 'openmaptiles',
-          'source-layer': 'building',
-          'filter': [
-            "!",
-            ["to-boolean",
-              ["get", "hide_3d"]
-            ]
-          ],
-          'type': 'fill-extrusion',
-          'minzoom': 13,
-          'paint': {
-            'fill-extrusion-color': 'lightgray',
-            'fill-extrusion-height': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              13,
-              0,
-              16,
-              ['get', 'render_height']
-            ],
-            'fill-extrusion-base': ['case',
-              ['>=', ['get', 'zoom'], 16],
-              ['get', 'render_min_height'], 0
-            ]
-          }
-        }, labelLayerId);
-      } else {
-        // For Mapbox, 3D buildings are included in the Standard style
-        const layers = map.current.getStyle().layers;
-        
-        // Find the building layer and ensure it's visible
-        for (const layer of layers) {
-          if (layer.type === 'fill-extrusion' && layer.id.includes('building')) {
-            map.current.setPaintProperty(layer.id, 'fill-extrusion-opacity', 0.8);
-          }
-        }
-      }
-
-      // Add sky layer for better 3D effect
-      map.current.addLayer({
-        'id': 'sky',
-        'type': 'sky',
-        'paint': {
-          'sky-type': 'atmosphere',
-          'sky-atmosphere-sun': [0.0, 90.0],
-          'sky-atmosphere-sun-intensity': 15
-        }
-      });
-
-      setMapInitialized(true);
-      setStatus(`Map initialized successfully with ${mapProvider === 'maplibre' ? 'MapLibre GL JS' : 'Mapbox GL JS'}!`);
-      setStatusType('success');
-    });
-
-    map.current.on('error', (error) => {
-      console.error('Map error:', error);
-      setStatus(`Failed to initialize map with ${mapProvider}. ${mapProvider === 'mapbox' ? 'Please check your Mapbox API token.' : 'Please try again.'}`);
-      setStatusType('error');
-    });
-  };
-  
-  // Auto-initialize MapLibre on first load (no API key needed)
-  useEffect(() => {
-    if (mapProvider === 'maplibre' && !mapInitialized) {
-      initializeMap();
-    }
-  }, []);
-
-  // Auto-reinitialize when switching to MapLibre
-  useEffect(() => {
-    if (mapProvider === 'maplibre' && !mapInitialized) {
-      initializeMap();
-    }
-  }, [mapProvider]);
-  
-  const downloadSketchfabModel = async () => {
-    if (!mapInitialized) {
-      setStatus('Please initialize the map first');
-      setStatusType('error');
-      return;
-    }
-
-    if (!sketchfabUID || !sketchfabApiToken) {
-      setStatus('Please enter both Sketchfab UID and API Token');
-      setStatusType('error');
-      return;
-    }
-
-    setStatus('Fetching model from Sketchfab...');
-    setStatusType('loading');
-
-    try {
-      const headers = {
-        'Authorization': `Token ${sketchfabApiToken}`,
-        'Content-Type': 'application/json'
-      };
-
-      // Add password header if provided
-      if (modelPassword) {
-        headers['x-skfb-model-pwd'] = btoa(modelPassword);
-      }
-
-      const response = await fetch(`https://api.sketchfab.com/v3/models/${sketchfabUID}/download`, {
-        headers: headers
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status} - ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      // Use GLB format instead of GLTF (which is a zip file)
-      if (data.glb && data.glb.url) {
-        setStatus('Model URL retrieved successfully! Loading model...');
-        setStatusType('success');
-        loadModelOnMap(data.glb.url);
-      } else if (data.gltf && data.gltf.url) {
-        // Fallback to GLTF but warn it's a ZIP
-        setStatus('Warning: GLTF URL is a ZIP file. Using GLB format is recommended.');
-        setStatusType('error');
-        throw new Error('GLTF format returns a ZIP file. Please ensure the model has GLB format available.');
-      } else {
-        throw new Error('No GLB download URL found in response');
-      }
-    } catch (error) {
-      setStatus(`Failed to download model: ${error.message}`);
-      setStatusType('error');
-    }
-  };
-  
-  const loadModelOnMap = (modelUrl) => {
-    // Remove existing layer if any
-    if (currentLayer && map.current.getLayer(currentLayer)) {
-      map.current.removeLayer(currentLayer);
-    }
-
-    const layerId = `3d-model-${Date.now()}`;
-    setCurrentLayer(layerId);
-
-    // Model positioning parameters
-    const modelOrigin = [24.9441, 60.1710]; // Helsinki Railway Square
-    const modelAltitude = 0;
-    const modelRotate = [Math.PI / 2, 0, 0];
-
-    // Use the appropriate coordinate system based on the map provider
-    const MercatorCoordinate = mapProvider === 'maplibre' ? maplibregl.MercatorCoordinate : mapboxgl.MercatorCoordinate;
-    
-    const modelAsMercatorCoordinate = MercatorCoordinate.fromLngLat(
-      modelOrigin,
-      modelAltitude
+  const handleResetAndInitialize = () => {
+    mapProvider.resetMap();
+    mapProvider.initializeMap(
+      (message) => updateStatus(message, 'success'),
+      (message) => updateStatus(message, 'error')
     );
-
-    const modelTransform = {
-      translateX: modelAsMercatorCoordinate.x,
-      translateY: modelAsMercatorCoordinate.y,
-      translateZ: modelAsMercatorCoordinate.z,
-      rotateX: modelRotate[0],
-      rotateY: modelRotate[1],
-      rotateZ: modelRotate[2],
-      scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
-    };
-
-    // Animation variables
-    let animationTime = 0;
-    const animationSpeed = 0.001;
-    const driftRadius = 0.0002; // Radius in degrees for the drift circle
-
-    // Custom layer for 3D model
-    const customLayer = {
-      id: layerId,
-      type: 'custom',
-      renderingMode: '3d',
-      onAdd(map, gl) {
-        this.camera = new THREE.Camera();
-        this.scene = new THREE.Scene();
-
-        // Add lights
-        const directionalLight = new THREE.DirectionalLight(0xffffff);
-        directionalLight.position.set(0, -70, 100).normalize();
-        this.scene.add(directionalLight);
-
-        const directionalLight2 = new THREE.DirectionalLight(0xffffff);
-        directionalLight2.position.set(0, 70, 100).normalize();
-        this.scene.add(directionalLight2);
-
-        // Add ambient light for better visibility
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        this.scene.add(ambientLight);
-
-        // Load the model
-        const loader = new GLTFLoader();
-        
-        loader.load(
-          modelUrl,
-          (gltf) => {
-            // Scale the model if it's too large or too small
-            const box = new THREE.Box3().setFromObject(gltf.scene);
-            const size = box.getSize(new THREE.Vector3());
-            const maxDimension = Math.max(size.x, size.y, size.z);
-            
-            // Adjust scale if model is too large (assuming we want models around 50-100 units)
-            if (maxDimension > 100) {
-              const scaleFactor = 50 / maxDimension;
-              gltf.scene.scale.multiplyScalar(scaleFactor);
-            }
-            
-            this.scene.add(gltf.scene);
-            modelRef.current = gltf.scene;
-            setStatus('Model loaded successfully!');
-            setStatusType('success');
-          },
-          (progress) => {
-            if (progress.total > 0) {
-              const percentComplete = (progress.loaded / progress.total * 100).toFixed(0);
-              setStatus(`Loading model: ${percentComplete}%`);
-              setStatusType('loading');
-            }
-          },
-          (error) => {
-            console.error('Error loading model:', error);
-            setStatus(`Failed to load model: ${error.message || 'Unknown error'}`);
-            setStatusType('error');
-          }
-        );
-
-        this.map = map;
-        this.renderer = new THREE.WebGLRenderer({
-          canvas: map.getCanvas(),
-          context: gl,
-          antialias: true
-        });
-        this.renderer.autoClear = false;
-      },
-      render(gl, matrix) {
-        // Update animation
-        if (isAnimating && animationType === 'broomBroom') {
-          animationTime += animationSpeed;
-          
-          // Calculate circular motion
-          const centerLng = modelOrigin[0];
-          const centerLat = modelOrigin[1];
-          
-          const newLng = centerLng + Math.cos(animationTime * 100) * driftRadius;
-          const newLat = centerLat + Math.sin(animationTime * 100) * driftRadius;
-          
-          // Update model position
-          const MercatorCoord = mapProvider === 'maplibre' ? maplibregl.MercatorCoordinate : mapboxgl.MercatorCoordinate;
-          const newCoordinate = MercatorCoord.fromLngLat([newLng, newLat], modelAltitude);
-          
-          modelTransform.translateX = newCoordinate.x;
-          modelTransform.translateY = newCoordinate.y;
-          modelTransform.translateZ = newCoordinate.z;
-          
-          // Add rotation to face the direction of movement
-          modelTransform.rotateZ = -animationTime * 100 + Math.PI / 2;
-        }
-
-        const rotationX = new THREE.Matrix4().makeRotationAxis(
-          new THREE.Vector3(1, 0, 0),
-          modelTransform.rotateX
-        );
-        const rotationY = new THREE.Matrix4().makeRotationAxis(
-          new THREE.Vector3(0, 1, 0),
-          modelTransform.rotateY
-        );
-        const rotationZ = new THREE.Matrix4().makeRotationAxis(
-          new THREE.Vector3(0, 0, 1),
-          modelTransform.rotateZ
-        );
-
-        const m = new THREE.Matrix4().fromArray(matrix);
-        const l = new THREE.Matrix4()
-          .makeTranslation(
-            modelTransform.translateX,
-            modelTransform.translateY,
-            modelTransform.translateZ
-          )
-          .scale(
-            new THREE.Vector3(
-              modelTransform.scale,
-              -modelTransform.scale,
-              modelTransform.scale
-            )
-          )
-          .multiply(rotationX)
-          .multiply(rotationY)
-          .multiply(rotationZ);
-
-        this.camera.projectionMatrix = m.multiply(l);
-        this.renderer.resetState();
-        this.renderer.render(this.scene, this.camera);
-        this.map.triggerRepaint();
-      }
-    };
-
-    map.current.addLayer(customLayer);
   };
 
-  const loadDefaultModel = () => {
-    if (!mapInitialized) {
-      setStatus('Please initialize the map first by entering your Mapbox API token');
-      setStatusType('error');
+  const handleDownloadSketchfabModel = () => {
+    sketchfabModel.downloadSketchfabModel(
+      mapProvider.mapInitialized,
+      (message, modelUrl) => {
+        updateStatus(message, 'success');
+        modelLoader.loadModelOnMap(
+          mapProvider.map.current,
+          modelUrl,
+          mapProvider.mapProvider,
+          animations.updateAnimation,
+          (message) => updateStatus(message, 'loading'),
+          (message) => updateStatus(message, 'success'),
+          (message) => updateStatus(message, 'error')
+        );
+      },
+      (message) => updateStatus(message, 'error'),
+      (message) => updateStatus(message, 'loading')
+    );
+  };
+
+  const handleLoadDefaultModel = () => {
+    if (!mapProvider.mapInitialized) {
+      updateStatus('Please initialize the map first', 'error');
       return;
     }
     
-    setStatus('Loading default model...');
-    setStatusType('loading');
-    loadModelOnMap('https://maplibre.org/maplibre-gl-js/docs/assets/34M_17/34M_17.gltf');
+    updateStatus('Loading default model...', 'loading');
+    modelLoader.loadDefaultModel(
+      mapProvider.map.current,
+      mapProvider.mapProvider,
+      animations.updateAnimation,
+      (message) => updateStatus(message, 'loading'),
+      (message) => updateStatus(message, 'success'),
+      (message) => updateStatus(message, 'error')
+    );
   };
 
-  const removeModel = () => {
-    if (currentLayer && map.current.getLayer(currentLayer)) {
-      stopAnimation(); // Stop any ongoing animation
-      map.current.removeLayer(currentLayer);
-      setCurrentLayer(null);
-      modelRef.current = null;
-      setStatus('Model removed');
-      setStatusType('success');
-    } else {
-      setStatus('No model to remove');
-      setStatusType('error');
+  const handleRemoveModel = () => {
+    animations.stopAnimation((message) => updateStatus(message, 'success'));
+    modelLoader.removeModel(
+      mapProvider.map.current,
+      (message) => updateStatus(message, 'success'),
+      (message) => updateStatus(message, 'error')
+    );
+  };
+
+  const handleStartAnimation = (animationType) => {
+    if (!modelLoader.currentLayer || !mapProvider.map.current) {
+      updateStatus('Please load a model first', 'error');
+      return;
     }
+
+    animations.startAnimation(
+      animationType,
+      (message) => updateStatus(message, 'success'),
+      (message) => updateStatus(message, 'error')
+    );
   };
 
+  const handleStopAnimation = () => {
+    animations.stopAnimation((message) => updateStatus(message, 'success'));
+  };
   return (
     <div className="app-container">
-      <div ref={mapContainer} className="map-container" />
+      <div ref={mapProvider.mapContainer} className="map-container" />
       
       <div className="sidepanel-container">
         <div className={`controls ${sidebarCollapsed ? 'collapsed' : ''}`}>
@@ -453,164 +116,41 @@ function App() {
             Load GLB format models from Sketchfab onto a 3D map. MapLibre is used by default (no API key needed), or switch to Mapbox for premium features.
           </p>
           
-          <div className="map-provider-section">
-            <h3>Map Provider</h3>
-            <div className="input-group">
-              <label>Select Map Provider:</label>
-              <select 
-                value={mapProvider} 
-                onChange={(e) => {
-                  setMapProvider(e.target.value);
-                  // Reset map when switching providers
-                  if (map.current) {
-                    map.current.remove();
-                    map.current = null;
-                    setMapInitialized(false);
-                    setCurrentLayer(null);
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #000000',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              >
-                <option value="maplibre">MapLibre GL JS (Free, No API Key)</option>
-                <option value="mapbox">Mapbox GL JS (Requires API Key)</option>
-              </select>
-            </div>
-            
-            {mapProvider === 'mapbox' && (
-              <div className="input-group">
-                <label htmlFor="mapbox-token">Mapbox API Token:</label>
-                <input
-                  id="mapbox-token"
-                  type="password"
-                  value={mapboxApiToken}
-                  onChange={(e) => setMapboxApiToken(e.target.value)}
-                  placeholder="Your Mapbox API Token (pk.ey...)"
-                />
-              </div>
-            )}
-            
-            <div className="button-group">
-              <button 
-                onClick={() => {
-                  if (map.current) {
-                    map.current.remove();
-                    map.current = null;
-                    setMapInitialized(false);
-                    setCurrentLayer(null);
-                  }
-                  initializeMap();
-                }} 
-                disabled={mapProvider === 'mapbox' && !mapboxApiToken}
-                className={mapInitialized ? 'success' : ''}
-              >
-                {mapInitialized ? 
-                  `${mapProvider === 'maplibre' ? 'MapLibre' : 'Mapbox'} Map Ready ✓` : 
-                  `Initialize ${mapProvider === 'maplibre' ? 'MapLibre' : 'Mapbox'} Map`
-                }
-              </button>
-            </div>
-          </div>
+          <MapProviderSection
+            mapProvider={mapProvider.mapProvider}
+            setMapProvider={handleMapProviderChange}
+            mapboxApiToken={mapProvider.mapboxApiToken}
+            setMapboxApiToken={mapProvider.setMapboxApiToken}
+            mapInitialized={mapProvider.mapInitialized}
+            onResetAndInitialize={handleResetAndInitialize}
+          />
           
-          {mapInitialized && (
-            <div className="model-section">
-              <h3>Load 3D Model from Sketchfab</h3>
-              
-              <div className="input-group">
-                <label htmlFor="sketchfab-token">Sketchfab API Token:</label>
-                <input
-                  id="sketchfab-token"
-                  type="password"
-                  value={sketchfabApiToken}
-                  onChange={(e) => setSketchfabApiToken(e.target.value)}
-                  placeholder="Your Sketchfab API Token"
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="uid">Sketchfab Model UID:</label>
-                <input
-                  id="uid"
-                  type="text"
-                  value={sketchfabUID}
-                  onChange={(e) => setSketchfabUID(e.target.value)}
-                  placeholder="e.g., ac2b507090fd4966a5109512a78cf73e"
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="password">Model Password (if required):</label>
-                <input
-                  id="password"
-                  type="password"
-                  value={modelPassword}
-                  onChange={(e) => setModelPassword(e.target.value)}
-                  placeholder="Leave empty if not password-protected"
-                />
-              </div>
-
-              <div className="button-group">
-                <button onClick={downloadSketchfabModel}>
-                  Load Sketchfab Model
-                </button>
-                <button onClick={loadDefaultModel}>
-                  Load Default Model
-                </button>
-              </div>
-
-              {currentLayer && (
-                <>
-                  <div className="button-group" style={{ marginTop: '10px' }}>
-                    <button onClick={removeModel} className="remove">
-                      Remove Model
-                    </button>
-                  </div>
-                  
-                  <div className="animation-section">
-                    <h3>Animations</h3>
-                    <div className="button-group">
-                      <button 
-                        onClick={startBroomBroomAnimation}
-                        disabled={isAnimating}
-                        className={isAnimating && animationType === 'broomBroom' ? 'success' : ''}
-                      >
-                        {isAnimating && animationType === 'broomBroom' ? 'Broom Broom! 🏎️' : 'Broom Broom'}
-                      </button>
-                    </div>
-                    {isAnimating && (
-                      <div className="button-group" style={{ marginTop: '10px' }}>
-                        <button onClick={stopAnimation} className="remove">
-                          Stop Animation
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+          {mapProvider.mapInitialized && (
+            <ModelSection
+              sketchfabUID={sketchfabModel.sketchfabUID}
+              setSketchfabUID={sketchfabModel.setSketchfabUID}
+              sketchfabApiToken={sketchfabModel.sketchfabApiToken}
+              setSketchfabApiToken={sketchfabModel.setSketchfabApiToken}
+              modelPassword={sketchfabModel.modelPassword}
+              setModelPassword={sketchfabModel.setModelPassword}
+              onDownloadSketchfabModel={handleDownloadSketchfabModel}
+              onLoadDefaultModel={handleLoadDefaultModel}
+              currentLayer={modelLoader.currentLayer}
+              onRemoveModel={handleRemoveModel}
+              isAnimating={animations.isAnimating}
+              animationType={animations.animationType}
+              onStartAnimation={handleStartAnimation}
+              onStopAnimation={handleStopAnimation}
+            />
           )}
 
-          {status && (
-            <div className={`status ${statusType}`}>
-              {status}
-            </div>
-          )}
+          <StatusMessage status={status} statusType={statusType} />
         </div>
         
-        <button 
-          className={`toggle-button ${sidebarCollapsed ? 'collapsed' : ''}`}
-          onClick={toggleSidebar}
-          aria-label={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
+        <ToggleButton 
+          sidebarCollapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
+        />
       </div>
     </div>
   );
