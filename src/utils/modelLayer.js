@@ -1,13 +1,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import mapboxgl from 'mapbox-gl';
-import maplibregl from 'maplibre-gl';
 
 export const createModelLayer = (
   layerId, 
   modelUrl, 
   modelOrigin, 
-  mapProvider, 
   updateAnimation, 
   onProgress, 
   onSuccess, 
@@ -16,10 +14,7 @@ export const createModelLayer = (
   const modelAltitude = 0;
   const modelRotate = [Math.PI / 2, 0, 0];
 
-  // Use the appropriate coordinate system based on the map provider
-  const MercatorCoordinate = mapProvider === 'maplibre' ? maplibregl.MercatorCoordinate : mapboxgl.MercatorCoordinate;
-  
-  const modelAsMercatorCoordinate = MercatorCoordinate.fromLngLat(
+  const modelAsMercatorCoordinate = mapboxgl.MercatorCoordinate.fromLngLat(
     modelOrigin,
     modelAltitude
   );
@@ -98,7 +93,7 @@ export const createModelLayer = (
     },
     render(gl, matrix) {
       // Update animation if needed
-      modelTransform = updateAnimation(modelOrigin, modelTransform, mapProvider);
+      modelTransform = updateAnimation(modelOrigin, modelTransform);
 
       const rotationX = new THREE.Matrix4().makeRotationAxis(
         new THREE.Vector3(1, 0, 0),

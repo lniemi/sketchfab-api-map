@@ -19,6 +19,7 @@ function App() {
   const sketchfabModel = useSketchfabModel();
   const modelLoader = useModelLoader();
   const animations = useAnimations();
+  
   // Utility functions
   const updateStatus = (message, type) => {
     setStatus(message);
@@ -27,12 +28,6 @@ function App() {
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
-  };
-
-  const handleMapProviderChange = (newProvider) => {
-    mapProvider.setMapProvider(newProvider);
-    mapProvider.resetMap();
-    modelLoader.currentLayer && setStatus('Map provider changed. Please reload your model.', 'warning');
   };
 
   const handleResetAndInitialize = () => {
@@ -51,7 +46,6 @@ function App() {
         modelLoader.loadModelOnMap(
           mapProvider.map.current,
           modelUrl,
-          mapProvider.mapProvider,
           animations.updateAnimation,
           (message) => updateStatus(message, 'loading'),
           (message) => updateStatus(message, 'success'),
@@ -72,7 +66,6 @@ function App() {
     updateStatus('Loading default model...', 'loading');
     modelLoader.loadDefaultModel(
       mapProvider.map.current,
-      mapProvider.mapProvider,
       animations.updateAnimation,
       (message) => updateStatus(message, 'loading'),
       (message) => updateStatus(message, 'success'),
@@ -105,6 +98,7 @@ function App() {
   const handleStopAnimation = () => {
     animations.stopAnimation((message) => updateStatus(message, 'success'));
   };
+  
   return (
     <div className="app-container">
       <div ref={mapProvider.mapContainer} className="map-container" />
@@ -113,12 +107,10 @@ function App() {
         <div className={`controls ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <h2>3D Model Map Viewer</h2>
           <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
-            Load GLB format models from Sketchfab onto a 3D map. MapLibre is used by default (no API key needed), or switch to Mapbox for premium features.
+            Load GLB format models from Sketchfab onto a Mapbox 3D map with premium features.
           </p>
           
           <MapProviderSection
-            mapProvider={mapProvider.mapProvider}
-            setMapProvider={handleMapProviderChange}
             mapboxApiToken={mapProvider.mapboxApiToken}
             setMapboxApiToken={mapProvider.setMapboxApiToken}
             mapInitialized={mapProvider.mapInitialized}

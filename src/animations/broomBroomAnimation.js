@@ -1,5 +1,4 @@
 import mapboxgl from 'mapbox-gl';
-import maplibregl from 'maplibre-gl';
 
 export const broomBroomAnimation = {
   name: 'broomBroom',
@@ -20,7 +19,7 @@ export const broomBroomAnimation = {
       speed: 0.0001 // Forward speed
     };
   },
-  update(animationState, modelOrigin, modelTransform, mapProvider) {
+  update(animationState, modelOrigin, modelTransform) {
     const { animationSpeed, driftRadius } = animationState;
     
     // Update animation time
@@ -40,7 +39,8 @@ export const broomBroomAnimation = {
       animationState.velocity.lng = newLng - animationState.previousLng;
       animationState.velocity.lat = newLat - animationState.previousLat;
     }
-      // Calculate movement direction (this is the actual direction the car is moving)
+    
+    // Calculate movement direction (this is the actual direction the car is moving)
     const movementAngle = Math.atan2(animationState.velocity.lat, animationState.velocity.lng);
     
     // For realistic drifting: car faces a different direction than its actual movement
@@ -48,21 +48,19 @@ export const broomBroomAnimation = {
     const driftOffset = Math.sin(angle * 2) * 0.4; // Oscillating drift angle for realistic effect
     animationState.carHeading = movementAngle + driftOffset; // Car faces offset from movement direction
     
-    // Update position using the appropriate coordinate system
-    const MercatorCoordinate = mapProvider === 'maplibre' 
-      ? maplibregl.MercatorCoordinate 
-      : mapboxgl.MercatorCoordinate;
-    
-    const newCoordinate = MercatorCoordinate.fromLngLat([newLng, newLat], 0);
+    // Update position using Mapbox coordinate system
+    const newCoordinate = mapboxgl.MercatorCoordinate.fromLngLat([newLng, newLat], 0);
     
     // Update position
     modelTransform.translateX = newCoordinate.x;
     modelTransform.translateY = newCoordinate.y;
     modelTransform.translateZ = newCoordinate.z;
-      // IMPORTANT: Only rotate around Y-axis (vertical) to keep car upright
+    
+    // IMPORTANT: Only rotate around Y-axis (vertical) to keep car upright
     // The original rotateX and rotateZ should remain unchanged from the initial model rotation
     // Only modify rotateY for the car's heading direction
-      // Convert heading to Y-axis rotation (car should face the direction it's pointing)
+    
+    // Convert heading to Y-axis rotation (car should face the direction it's pointing)
     // Keep the same rotational direction as the circular motion for natural drift
     const modelFacingOffset = Math.PI; // 180 degrees to make front face forward instead of backward
     modelTransform.rotateY = animationState.carHeading + modelFacingOffset;

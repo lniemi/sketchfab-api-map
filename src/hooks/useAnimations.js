@@ -34,13 +34,13 @@ export const useAnimations = () => {
     onSuccess('Animation stopped');
   };
 
-  const updateAnimation = (modelOrigin, modelTransform, mapProvider) => {
+  const updateAnimation = (modelOrigin, modelTransform) => {
     if (!isAnimating || !animationType || !animationStateRef.current) {
       return modelTransform;
     }
 
     const animation = getAnimation(animationType);
-    return animation.update(animationStateRef.current, modelOrigin, modelTransform, mapProvider);
+    return animation.update(animationStateRef.current, modelOrigin, modelTransform);
   };
 
   return {

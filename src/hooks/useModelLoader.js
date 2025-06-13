@@ -5,7 +5,7 @@ export const useModelLoader = () => {
   const [currentLayer, setCurrentLayer] = useState(null);
   const modelRef = useRef(null);
 
-  const loadModelOnMap = (map, modelUrl, mapProvider, updateAnimation, onProgress, onSuccess, onError) => {
+  const loadModelOnMap = (map, modelUrl, updateAnimation, onProgress, onSuccess, onError) => {
     // Remove existing layer if any
     if (currentLayer && map.getLayer(currentLayer)) {
       map.removeLayer(currentLayer);
@@ -21,7 +21,6 @@ export const useModelLoader = () => {
       layerId,
       modelUrl,
       modelOrigin,
-      mapProvider,
       updateAnimation,
       (percentComplete) => {
         onProgress(`Loading model: ${percentComplete}%`);
@@ -49,11 +48,10 @@ export const useModelLoader = () => {
     }
   };
 
-  const loadDefaultModel = (map, mapProvider, updateAnimation, onProgress, onSuccess, onError) => {
+  const loadDefaultModel = (map, updateAnimation, onProgress, onSuccess, onError) => {
     loadModelOnMap(
       map, 
       'https://maplibre.org/maplibre-gl-js/docs/assets/34M_17/34M_17.gltf',
-      mapProvider,
       updateAnimation,
       onProgress,
       onSuccess,
