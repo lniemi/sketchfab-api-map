@@ -49,6 +49,10 @@
   padding: 0;
 }
 
+.toggle-button.collapsed {
+  transform: translateX(-350px);
+}
+
 .toggle-button:hover {
   background: #5e5e5e;
 }
