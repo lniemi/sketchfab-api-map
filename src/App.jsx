@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import './App.css';
 
 function App() {
   const mapContainer = useRef(null);
@@ -14,6 +15,11 @@ function App() {
   const [statusType, setStatusType] = useState('');
   const [currentLayer, setCurrentLayer] = useState(null);
   const [mapInitialized, setMapInitialized] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
 
   const initializeMap = () => {
     if (!mapboxApiToken) {
@@ -300,98 +306,110 @@ function App() {
     <div className="app-container">
       <div ref={mapContainer} className="map-container" />
       
-      <div className="controls">
-        <h2>3D Model Map Viewer</h2>
-        <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
-          Enter your API keys to get started. This app loads GLB format models from Sketchfab onto a Mapbox map.
-        </p>
-        
-        <div className="api-keys-section">
-          <h3>API Configuration</h3>
+      <div className="sidepanel-container">
+        <div className={`controls ${sidebarCollapsed ? 'collapsed' : ''}`}>
+          <h2>3D Model Map Viewer</h2>
+          <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
+            Enter your API keys to get started. This app loads GLB format models from Sketchfab onto a Mapbox map.
+          </p>
           
-          <div className="input-group">
-            <label htmlFor="mapbox-token">Mapbox API Token:</label>
-            <input
-              id="mapbox-token"
-              type="password"
-              value={mapboxApiToken}
-              onChange={(e) => setMapboxApiToken(e.target.value)}
-              placeholder="Your Mapbox API Token (pk.ey...)"
-            />
-          </div>
-
-          <div className="button-group">
-            <button 
-              onClick={initializeMap} 
-              disabled={!mapboxApiToken || mapInitialized}
-              className={mapInitialized ? 'success' : ''}
-            >
-              {mapInitialized ? 'Map Initialized ✓' : 'Initialize Map'}
-            </button>
-          </div>
-        </div>
-
-        {mapInitialized && (
-          <div className="model-section">
-            <h3>Load 3D Model from Sketchfab</h3>
+          <div className="api-keys-section">
+            <h3>API Configuration</h3>
             
             <div className="input-group">
-              <label htmlFor="sketchfab-token">Sketchfab API Token:</label>
+              <label htmlFor="mapbox-token">Mapbox API Token:</label>
               <input
-                id="sketchfab-token"
+                id="mapbox-token"
                 type="password"
-                value={sketchfabApiToken}
-                onChange={(e) => setSketchfabApiToken(e.target.value)}
-                placeholder="Your Sketchfab API Token"
-              />
-            </div>
-
-            <div className="input-group">
-              <label htmlFor="uid">Sketchfab Model UID:</label>
-              <input
-                id="uid"
-                type="text"
-                value={sketchfabUID}
-                onChange={(e) => setSketchfabUID(e.target.value)}
-                placeholder="e.g., ac2b507090fd4966a5109512a78cf73e"
-              />
-            </div>
-
-            <div className="input-group">
-              <label htmlFor="password">Model Password (if required):</label>
-              <input
-                id="password"
-                type="password"
-                value={modelPassword}
-                onChange={(e) => setModelPassword(e.target.value)}
-                placeholder="Leave empty if not password-protected"
+                value={mapboxApiToken}
+                onChange={(e) => setMapboxApiToken(e.target.value)}
+                placeholder="Your Mapbox API Token (pk.ey...)"
               />
             </div>
 
             <div className="button-group">
-              <button onClick={downloadSketchfabModel}>
-                Load Sketchfab Model
-              </button>
-              <button onClick={loadDefaultModel}>
-                Load Default Model
+              <button 
+                onClick={initializeMap} 
+                disabled={!mapboxApiToken || mapInitialized}
+                className={mapInitialized ? 'success' : ''}
+              >
+                {mapInitialized ? 'Map Initialized ✓' : 'Initialize Map'}
               </button>
             </div>
+          </div>
 
-            {currentLayer && (
-              <div className="button-group" style={{ marginTop: '10px' }}>
-                <button onClick={removeModel} className="remove">
-                  Remove Model
+          {mapInitialized && (
+            <div className="model-section">
+              <h3>Load 3D Model from Sketchfab</h3>
+              
+              <div className="input-group">
+                <label htmlFor="sketchfab-token">Sketchfab API Token:</label>
+                <input
+                  id="sketchfab-token"
+                  type="password"
+                  value={sketchfabApiToken}
+                  onChange={(e) => setSketchfabApiToken(e.target.value)}
+                  placeholder="Your Sketchfab API Token"
+                />
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="uid">Sketchfab Model UID:</label>
+                <input
+                  id="uid"
+                  type="text"
+                  value={sketchfabUID}
+                  onChange={(e) => setSketchfabUID(e.target.value)}
+                  placeholder="e.g., ac2b507090fd4966a5109512a78cf73e"
+                />
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="password">Model Password (if required):</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={modelPassword}
+                  onChange={(e) => setModelPassword(e.target.value)}
+                  placeholder="Leave empty if not password-protected"
+                />
+              </div>
+
+              <div className="button-group">
+                <button onClick={downloadSketchfabModel}>
+                  Load Sketchfab Model
+                </button>
+                <button onClick={loadDefaultModel}>
+                  Load Default Model
                 </button>
               </div>
-            )}
-          </div>
-        )}
 
-        {status && (
-          <div className={`status ${statusType}`}>
-            {status}
-          </div>
-        )}
+              {currentLayer && (
+                <div className="button-group" style={{ marginTop: '10px' }}>
+                  <button onClick={removeModel} className="remove">
+                    Remove Model
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {status && (
+            <div className={`status ${statusType}`}>
+              {status}
+            </div>
+          )}
+        </div>
+        
+        <button 
+          className={`toggle-button ${sidebarCollapsed ? 'collapsed' : ''}`}
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
       </div>
     </div>
   );
