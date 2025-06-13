@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
+import maplibregl from 'maplibre-gl';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import './App.css';
@@ -16,46 +17,108 @@ function App() {
   const [currentLayer, setCurrentLayer] = useState(null);
   const [mapInitialized, setMapInitialized] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mapProvider, setMapProvider] = useState('maplibre'); // 'maplibre' or 'mapbox'
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
-
   const initializeMap = () => {
-    if (!mapboxApiToken) {
-      setStatus('Please enter your Mapbox API token to initialize the map');
+    if (mapProvider === 'mapbox' && !mapboxApiToken) {
+      setStatus('Please enter your Mapbox API token to use Mapbox');
       setStatusType('error');
       return;
     }
 
     if (map.current) return; // Initialize map only once
 
-    // Set the Mapbox access token
-    mapboxgl.accessToken = mapboxApiToken;
+    let mapInstance;    if (mapProvider === 'maplibre') {
+      // MapLibre GL JS - no API key required
+      mapInstance = new maplibregl.Map({
+        container: mapContainer.current,
+        style: 'https://tiles.stadiamaps.com/styles/alidade_bright.json', // Stadia Maps style
+        zoom: 16,
+        center: [24.9441, 60.1710], // Senate Square, Helsinki
+        pitch: 60,
+        bearing: -20,
+        antialias: true
+      });
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/standard', // Mapbox Standard style with 3D buildings
-      zoom: 16,
-      center: [24.9441, 60.1710], // Senate Square, Helsinki (moved 20m south)
-      pitch: 60,
-      bearing: -20,
-      antialias: true
-    });
+      // Add RTL text plugin for better text rendering
+      maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js');
 
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-    // Wait for map to load before adding 3D buildings layer
-    map.current.on('style.load', () => {
-      // The 3D buildings are included in Mapbox Standard style by default
-      // But we can adjust their appearance if needed
-      const layers = map.current.getStyle().layers;
+      // Add navigation controls
+      mapInstance.addControl(new maplibregl.NavigationControl(), 'top-right');
+    } else {
+      // Mapbox GL JS - requires API key
+      mapboxgl.accessToken = mapboxApiToken;
       
-      // Find the building layer and ensure it's visible
-      for (const layer of layers) {
-        if (layer.type === 'fill-extrusion' && layer.id.includes('building')) {
-          map.current.setPaintProperty(layer.id, 'fill-extrusion-opacity', 0.8);
+      mapInstance = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/standard', // Mapbox Standard style with 3D buildings
+        zoom: 16,
+        center: [24.9441, 60.1710], // Senate Square, Helsinki
+        pitch: 60,
+        bearing: -20,
+        antialias: true
+      });
+
+      // Add navigation controls
+      mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    }
+
+    map.current = mapInstance;    // Wait for map to load before adding 3D buildings layer
+    map.current.on('style.load', () => {
+      if (mapProvider === 'maplibre') {
+        // Add 3D buildings layer for MapLibre using the same approach as the example
+        const layers = map.current.getStyle().layers;
+
+        // Find the first symbol layer to add buildings underneath
+        let labelLayerId;
+        for (let i = 0; i < layers.length; i++) {
+          if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
+            labelLayerId = layers[i].id;
+            break;
+          }
+        }
+
+        map.current.addLayer({
+          'id': '3d-buildings',
+          'source': 'openmaptiles',
+          'source-layer': 'building',
+          'filter': [
+            "!",
+            ["to-boolean",
+              ["get", "hide_3d"]
+            ]
+          ],
+          'type': 'fill-extrusion',
+          'minzoom': 13,
+          'paint': {
+            'fill-extrusion-color': 'lightgray',
+            'fill-extrusion-height': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              13,
+              0,
+              16,
+              ['get', 'render_height']
+            ],
+            'fill-extrusion-base': ['case',
+              ['>=', ['get', 'zoom'], 16],
+              ['get', 'render_min_height'], 0
+            ]
+          }
+        }, labelLayerId);
+      } else {
+        // For Mapbox, 3D buildings are included in the Standard style
+        const layers = map.current.getStyle().layers;
+        
+        // Find the building layer and ensure it's visible
+        for (const layer of layers) {
+          if (layer.type === 'fill-extrusion' && layer.id.includes('building')) {
+            map.current.setPaintProperty(layer.id, 'fill-extrusion-opacity', 0.8);
+          }
         }
       }
 
@@ -71,24 +134,31 @@ function App() {
       });
 
       setMapInitialized(true);
-      setStatus('Map initialized successfully!');
+      setStatus(`Map initialized successfully with ${mapProvider === 'maplibre' ? 'MapLibre GL JS' : 'Mapbox GL JS'}!`);
       setStatusType('success');
     });
 
     map.current.on('error', (error) => {
-      console.error('Mapbox error:', error);
-      setStatus('Failed to initialize map. Please check your Mapbox API token.');
+      console.error('Map error:', error);
+      setStatus(`Failed to initialize map with ${mapProvider}. ${mapProvider === 'mapbox' ? 'Please check your Mapbox API token.' : 'Please try again.'}`);
       setStatusType('error');
     });
-  };
-
+  };  // Auto-initialize MapLibre on first load (no API key needed)
   useEffect(() => {
-    // Map will be initialized when user provides API token
+    if (mapProvider === 'maplibre' && !mapInitialized) {
+      initializeMap();
+    }
   }, []);
 
+  // Auto-reinitialize when switching to MapLibre
+  useEffect(() => {
+    if (mapProvider === 'maplibre' && !mapInitialized) {
+      initializeMap();
+    }
+  }, [mapProvider]);
   const downloadSketchfabModel = async () => {
     if (!mapInitialized) {
-      setStatus('Please initialize the map first by entering your Mapbox API token');
+      setStatus('Please initialize the map first');
       setStatusType('error');
       return;
     }
@@ -141,7 +211,6 @@ function App() {
       setStatusType('error');
     }
   };
-
   const loadModelOnMap = (modelUrl) => {
     // Remove existing layer if any
     if (currentLayer && map.current.getLayer(currentLayer)) {
@@ -156,7 +225,10 @@ function App() {
     const modelAltitude = 0;
     const modelRotate = [Math.PI / 2, 0, 0];
 
-    const modelAsMercatorCoordinate = mapboxgl.MercatorCoordinate.fromLngLat(
+    // Use the appropriate coordinate system based on the map provider
+    const MercatorCoordinate = mapProvider === 'maplibre' ? maplibregl.MercatorCoordinate : mapboxgl.MercatorCoordinate;
+    
+    const modelAsMercatorCoordinate = MercatorCoordinate.fromLngLat(
       modelOrigin,
       modelAltitude
     );
@@ -306,39 +378,71 @@ function App() {
     <div className="app-container">
       <div ref={mapContainer} className="map-container" />
       
-      <div className="sidepanel-container">
-        <div className={`controls ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <div className="sidepanel-container">        <div className={`controls ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <h2>3D Model Map Viewer</h2>
           <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
-            Enter your API keys to get started. This app loads GLB format models from Sketchfab onto a Mapbox map.
+            Load GLB format models from Sketchfab onto a 3D map. MapLibre is used by default (no API key needed), or switch to Mapbox for premium features.
           </p>
           
-          <div className="api-keys-section">
-            <h3>API Configuration</h3>
-            
-            <div className="input-group">
-              <label htmlFor="mapbox-token">Mapbox API Token:</label>
-              <input
-                id="mapbox-token"
-                type="password"
-                value={mapboxApiToken}
-                onChange={(e) => setMapboxApiToken(e.target.value)}
-                placeholder="Your Mapbox API Token (pk.ey...)"
-              />
-            </div>
-
-            <div className="button-group">
+          <div className="map-provider-section">
+            <h3>Map Provider</h3>
+              <div className="input-group">
+              <label>Select Map Provider:</label>
+              <select 
+                value={mapProvider} 
+                onChange={(e) => {
+                  setMapProvider(e.target.value);
+                  // Reset map when switching providers
+                  if (map.current) {
+                    map.current.remove();
+                    map.current = null;
+                    setMapInitialized(false);
+                    setCurrentLayer(null);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #000000',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="maplibre">MapLibre GL JS (Free, No API Key)</option>
+                <option value="mapbox">Mapbox GL JS (Requires API Key)</option>
+              </select>
+            </div>            {mapProvider === 'mapbox' && (
+              <div className="input-group">
+                <label htmlFor="mapbox-token">Mapbox API Token:</label>
+                <input
+                  id="mapbox-token"
+                  type="password"
+                  value={mapboxApiToken}
+                  onChange={(e) => setMapboxApiToken(e.target.value)}
+                  placeholder="Your Mapbox API Token (pk.ey...)"
+                />
+              </div>
+            )}            <div className="button-group">
               <button 
-                onClick={initializeMap} 
-                disabled={!mapboxApiToken || mapInitialized}
+                onClick={() => {
+                  if (map.current) {
+                    map.current.remove();
+                    map.current = null;
+                    setMapInitialized(false);
+                    setCurrentLayer(null);
+                  }
+                  initializeMap();
+                }} 
+                disabled={mapProvider === 'mapbox' && !mapboxApiToken}
                 className={mapInitialized ? 'success' : ''}
               >
-                {mapInitialized ? 'Map Initialized ✓' : 'Initialize Map'}
+                {mapInitialized ? 
+                  `${mapProvider === 'maplibre' ? 'MapLibre' : 'Mapbox'} Map Ready ✓` : 
+                  `Initialize ${mapProvider === 'maplibre' ? 'MapLibre' : 'Mapbox'} Map`
+                }
               </button>
             </div>
-          </div>
-
-          {mapInitialized && (
+          </div>          {mapInitialized && (
             <div className="model-section">
               <h3>Load 3D Model from Sketchfab</h3>
               
