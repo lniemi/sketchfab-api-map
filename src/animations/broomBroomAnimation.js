@@ -18,8 +18,7 @@ export const broomBroomAnimation = {
       driftAngle: 0, // Angle between car heading and movement direction
       speed: 0.0001 // Forward speed
     };
-  },
-  update(animationState, modelOrigin, modelTransform) {
+  },  update(animationState, modelOrigin, modelTransform) {
     const { animationSpeed, driftRadius } = animationState;
     
     // Update animation time

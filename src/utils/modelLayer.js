@@ -29,6 +29,9 @@ export const createModelLayer = (
     scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
   };
 
+  // Store the initial transform for resetting
+  const initialTransform = { ...modelTransform };
+
   // Custom layer for 3D model
   const customLayer = {
     id: layerId,
@@ -130,6 +133,10 @@ export const createModelLayer = (
       this.renderer.resetState();
       this.renderer.render(this.scene, this.camera);
       this.map.triggerRepaint();
+    },
+    // Add method to reset transform when animation stops
+    resetTransform() {
+      modelTransform = { ...initialTransform };
     }
   };
 

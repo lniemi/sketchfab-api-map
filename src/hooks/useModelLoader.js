@@ -4,6 +4,7 @@ import { createModelLayer } from '../utils/modelLayer';
 export const useModelLoader = () => {
   const [currentLayer, setCurrentLayer] = useState(null);
   const modelRef = useRef(null);
+  const layerRef = useRef(null);
 
   const loadModelOnMap = (map, modelUrl, updateAnimation, onProgress, onSuccess, onError) => {
     // Remove existing layer if any
@@ -34,6 +35,7 @@ export const useModelLoader = () => {
       }
     );
 
+    layerRef.current = customLayer;
     map.addLayer(customLayer);
   };
 
@@ -42,6 +44,7 @@ export const useModelLoader = () => {
       map.removeLayer(currentLayer);
       setCurrentLayer(null);
       modelRef.current = null;
+      layerRef.current = null;
       onSuccess('Model removed');
     } else {
       onError('No model to remove');
@@ -62,6 +65,7 @@ export const useModelLoader = () => {
   return {
     currentLayer,
     modelRef,
+    layerRef,
     loadModelOnMap,
     removeModel,
     loadDefaultModel

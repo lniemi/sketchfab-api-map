@@ -74,7 +74,10 @@ function App() {
   };
 
   const handleRemoveModel = () => {
-    animations.stopAnimation((message) => updateStatus(message, 'success'));
+    animations.stopAnimation(
+      (message) => updateStatus(message, 'success'),
+      modelLoader.layerRef
+    );
     modelLoader.removeModel(
       mapProvider.map.current,
       (message) => updateStatus(message, 'success'),
@@ -90,13 +93,17 @@ function App() {
 
     animations.startAnimation(
       animationType,
+      mapProvider.map.current,
       (message) => updateStatus(message, 'success'),
       (message) => updateStatus(message, 'error')
     );
   };
 
   const handleStopAnimation = () => {
-    animations.stopAnimation((message) => updateStatus(message, 'success'));
+    animations.stopAnimation(
+      (message) => updateStatus(message, 'success'),
+      modelLoader.layerRef
+    );
   };
   
   return (
