@@ -1,15 +1,12 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+// GLTFLoader is now used in useModelLoader.js
 import mapboxgl from 'mapbox-gl';
 
 export const createModelLayer = (
   layerId, 
-  modelUrl, 
   modelOrigin, 
   updateAnimation, 
-  onProgress, 
-  onSuccess, 
-  onError
+  onSceneReady // Callback: (threeJsScene: THREE.Scene) => void
 ) => {
   const modelAltitude = 0;
   const modelRotate = [Math.PI / 2, 0, 0];
@@ -48,43 +45,16 @@ export const createModelLayer = (
 
       const directionalLight2 = new THREE.DirectionalLight(0xffffff);
       directionalLight2.position.set(0, 70, 100).normalize();
-      this.scene.add(directionalLight2);
-
-      // Add ambient light for better visibility
+      this.scene.add(directionalLight2);      // Add ambient light for better visibility
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
       this.scene.add(ambientLight);
 
-      // Load the model
-      const loader = new GLTFLoader();
-      
-      loader.load(
-        modelUrl,
-        (gltf) => {
-          // Scale the model if it's too large or too small
-          const box = new THREE.Box3().setFromObject(gltf.scene);
-          const size = box.getSize(new THREE.Vector3());
-          const maxDimension = Math.max(size.x, size.y, size.z);
-          
-          // Adjust scale if model is too large (assuming we want models around 50-100 units)
-          if (maxDimension > 100) {
-            const scaleFactor = 50 / maxDimension;
-            gltf.scene.scale.multiplyScalar(scaleFactor);
-          }
-          
-          this.scene.add(gltf.scene);
-          onSuccess(gltf.scene);
-        },
-        (progress) => {
-          if (progress.total > 0) {
-            const percentComplete = (progress.loaded / progress.total * 100).toFixed(0);
-            onProgress(percentComplete);
-          }
-        },
-        (error) => {
-          console.error('Error loading model:', error);
-          onError(error.message || 'Unknown error');
-        }
-      );
+      // The caller (useModelLoader.js) is now responsible for loading the model
+      // and adding it to this.scene. The onSceneReady callback provides this.scene
+      // to the caller for this purpose.
+      if (onSceneReady) {
+        onSceneReady(this.scene);
+      }
 
       this.map = map;
       this.renderer = new THREE.WebGLRenderer({
