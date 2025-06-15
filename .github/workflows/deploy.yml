@@ -5,7 +5,7 @@ on:
   # Trigger workflow on push to main branch
   push:
     branches:
-      - main
+      - master
   # Allows manual triggering
   workflow_dispatch:
 
