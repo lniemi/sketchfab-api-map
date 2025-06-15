@@ -9,6 +9,7 @@ on:
   # Allows manual triggering
   workflow_dispatch:
 
+
 permissions:
   contents: read
   pages: write
