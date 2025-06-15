@@ -66,3 +66,17 @@
 .toggle-button.collapsed svg {
   transform: rotate(180deg);
 }
+
+.status-indicator {
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-left: 3px solid transparent;
+}
+
+.status-indicator div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

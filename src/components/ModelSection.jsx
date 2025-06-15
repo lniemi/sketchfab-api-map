@@ -16,20 +16,21 @@ const ModelSection = ({
   onStartAnimation,
   onStopAnimation
 }) => {
-  return (
-    <div className="model-section">
+  return (    <div className="model-section">
       <h3>Load 3D Model from Sketchfab</h3>
       
-      <div className="input-group">
-        <label htmlFor="sketchfab-token">Sketchfab API Token:</label>
-        <input
-          id="sketchfab-token"
-          type="password"
-          value={sketchfabApiToken}
-          onChange={(e) => setSketchfabApiToken(e.target.value)}
-          placeholder="Your Sketchfab API Token"
-        />
-      </div>
+      {!import.meta.env.VITE_SKETCHFAB_API_TOKEN && (
+        <div className="input-group">
+          <label htmlFor="sketchfab-token">Sketchfab API Token:</label>
+          <input
+            id="sketchfab-token"
+            type="password"
+            value={sketchfabApiToken}
+            onChange={(e) => setSketchfabApiToken(e.target.value)}
+            placeholder="Your Sketchfab API Token (optional)"
+          />
+        </div>
+      )}
 
       <div className="input-group">
         <label htmlFor="uid">Sketchfab Model UID:</label>

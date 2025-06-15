@@ -28,15 +28,15 @@ function App() {  const [status, setStatus] = useState('');
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
-
   const handleResetAndInitialize = () => {
     // Ensure any ongoing operations are cleaned up
     if (animations.isAnimating) {
       animations.stopAnimation(() => updateStatus("Animation stopped due to map reset.", "info"), modelLoader.layerRef);
     }
     if (modelLoader.currentLayer && mapProvider.map.current) {
-        modelLoader.removeModel(mapProvider.map.current, () => {}, () => {}); // Silently remove
-    }    mapProvider.resetMap();
+      modelLoader.removeModel(mapProvider.map.current, () => {}, () => {}); // Silently remove
+    }
+    mapProvider.resetMap();
     setCurrentModelSource(null);
     setCachedGltfScene(null); // Clear cache on full reset
     mapProvider.initializeMap(
@@ -255,17 +255,16 @@ function App() {  const [status, setStatus] = useState('');
       
       <div className="sidepanel-container">
         <div className={`controls ${sidebarCollapsed ? 'collapsed' : ''}`}>
-          <h2>3D Model Map Viewer</h2>
-          <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
+          <h2>3D Model Map Viewer</h2>          <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
             Load GLB format models from Sketchfab onto a Mapbox 3D map with premium features.
-          </p>
-          
-          <MapProviderSection
-            mapboxApiToken={mapProvider.mapboxApiToken}
-            setMapboxApiToken={mapProvider.setMapboxApiToken}
-            mapInitialized={mapProvider.mapInitialized}
-            onResetAndInitialize={handleResetAndInitialize}
-          />
+          </p>          {(!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || mapProvider.mapError) && (
+            <MapProviderSection
+              mapboxApiToken={mapProvider.mapboxApiToken}
+              setMapboxApiToken={mapProvider.setMapboxApiToken}
+              mapInitialized={mapProvider.mapInitialized}
+              mapError={mapProvider.mapError}
+            />
+          )}
           
           {mapProvider.mapInitialized && (
             <ModelSection

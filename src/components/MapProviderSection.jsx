@@ -3,8 +3,8 @@ import React from 'react';
 const MapProviderSection = ({ 
   mapboxApiToken, 
   setMapboxApiToken, 
-  mapInitialized, 
-  onResetAndInitialize 
+  mapInitialized,
+  mapError
 }) => {
   return (
     <div className="map-provider-section">
@@ -17,18 +17,33 @@ const MapProviderSection = ({
           type="password"
           value={mapboxApiToken}
           onChange={(e) => setMapboxApiToken(e.target.value)}
-          placeholder="Your Mapbox API Token (pk.ey...)"
+          placeholder={mapboxApiToken ? "Loaded from .env file" : "Your Mapbox API Token (pk.ey...)"}
         />
+        {mapboxApiToken && (
+          <small style={{ color: '#666', fontSize: '11px' }}>
+            {import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ? '✓ Loaded from .env' : '✓ Custom token'}
+          </small>
+        )}
       </div>
       
-      <div className="button-group">
-        <button 
-          onClick={onResetAndInitialize}
-          disabled={!mapboxApiToken}
-          className={mapInitialized ? 'success' : ''}
-        >
-          {mapInitialized ? 'Mapbox Map Ready ✓' : 'Initialize Mapbox Map'}
-        </button>
+      <div className="status-indicator">
+        {mapInitialized ? (
+          <div style={{ color: '#28a745', fontSize: '14px', fontWeight: 'bold' }}>
+            ✓ Map Ready
+          </div>
+        ) : mapError ? (
+          <div style={{ color: '#dc3545', fontSize: '14px' }}>
+            ✗ {mapError}
+          </div>
+        ) : mapboxApiToken ? (
+          <div style={{ color: '#ffc107', fontSize: '14px' }}>
+            ⏳ Initializing map...
+          </div>
+        ) : (
+          <div style={{ color: '#6c757d', fontSize: '14px' }}>
+            Waiting for API token...
+          </div>
+        )}
       </div>
     </div>
   );

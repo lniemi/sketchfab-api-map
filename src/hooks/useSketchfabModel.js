@@ -2,7 +2,9 @@ import { useState } from 'react';
 
 export const useSketchfabModel = () => {
   const [sketchfabUID, setSketchfabUID] = useState('');
-  const [sketchfabApiToken, setSketchfabApiToken] = useState('');
+  const [sketchfabApiToken, setSketchfabApiToken] = useState(
+    import.meta.env.VITE_SKETCHFAB_API_TOKEN || ''
+  );
   const [modelPassword, setModelPassword] = useState('');
 
   // Modified to accept optional uid, token, password in a params object
