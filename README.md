@@ -1,4 +1,6 @@
-# 3D Model Map Viewer
+# Sketchfab-Mapbox integration
+
+![alt text](image.png)
 
 A React application for loading and displaying 3D models from Sketchfab on a Mapbox 3D map with interactive animations.
 
@@ -10,7 +12,11 @@ A React application for loading and displaying 3D models from Sketchfab on a Map
 - Model caching for better performance
 - Support for both public and private Sketchfab models
 
-## Setup
+## Live Demo
+
+Check out the live demo at [Sketchfab Mapbox Demo](https://sketchfab-api-map.vercel.app/)
+
+## Local setup
 
 1. **Clone the repository and install dependencies:**
    ```bash
